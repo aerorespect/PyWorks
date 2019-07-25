@@ -3,23 +3,23 @@ import bs4 as bs
 import matplotlib.pyplot as plt
 import pandas as pd
 
-season = 1
+season = 1 
 
-seasonEnd = False
+seasonEnd = False      
 # title = "BreakingBad"
-title = input ('input title : ')
+title = input ('input title : ')    #input the title
 
 print ('Title : ' + str(title))
 
-link = input ('input IMDB Link : ')
+link = input ('input IMDB Link : ')     #input IMDB Link (e.g : 'https://www.imdb.com/title/tt0944947/episodes?season=tt0944947' for Game of Thrones
+
 
 potong, sep, after = link.partition("=")
 urlRaw = str(potong) + '='
 
-# urlRaw = 'https://www.imdb.com/title/tt0944947/episodes?season='        #Friends : tt0108778 , GOT : tt0944947, BreakingBad : tt0903747, Dexter : tt0773262
 
-# function to scrape episode number, description and rating
 def ExtractIMDBSeries (soup):
+    # function to scrape episode number, description and rating
     episodes_list = soup.find('div', attrs={'class': 'list detail eplist'}).findAll('strong')
     episode = 1
     totalEpisodes = []
@@ -40,11 +40,12 @@ def ExtractIMDBSeries (soup):
         totalEpisodes += [episodes_item]
         episode += 1
 
-    return totalEpisodes
+    return totalEpisodes    #list of episode number, airdate, title, description, and rating for one season
 
 
 
 def checkUrl(url, season):
+    #function to check how many season available for that series
     url = str(url) + str(season)
     sauce = requests.get(url)
     soup = bs.BeautifulSoup(sauce.text, 'html.parser')
@@ -53,6 +54,7 @@ def checkUrl(url, season):
     soupNext = bs.BeautifulSoup(sauceNext.text, 'html.parser')
 
     if soup.find('h3', attrs={'id': 'episode_top'}) == soupNext.find('h3', attrs={'id': 'episode_top'}):
+        #if this webpage is same as the previous webpage, it means there is no more new seasons
         seasonEnd = True
     else:
         seasonEnd = False
@@ -63,6 +65,7 @@ writer = pd.ExcelWriter(str(title)+'_ratings.xlsx')
 bigData = []
 
 while seasonEnd == False :
+    #iterate to extract data from all season
     seasonEnd = checkUrl(urlRaw, season)
     url = str(urlRaw) + str(season)
     sauce = requests.get(url)
@@ -83,6 +86,7 @@ ax=plt.gca()
 printData = []
 
 for i in range(len(bigData)):
+    #list up all episode number in totalEpisode variable 
     if i == 0 :
         print('aaa' + str(i))
         bigData[i]['totalEpisode'] = bigData[i]['episode']
@@ -105,6 +109,7 @@ for j in range(len(printData)):
             printData[j] = printData[j].append(bigData[j+1].iloc[0])
 
     printData[j].plot(kind='line', x='totalEpisode', y='rating', ax=ax, label='season ' + str(j + 1))
-
+    
+#save plot figure
 plt.savefig (title + '_ratings.png')
 writer.save()
