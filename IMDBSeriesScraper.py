@@ -2,17 +2,19 @@ import requests
 import bs4 as bs
 import matplotlib.pyplot as plt
 import pandas as pd
+import time
 
 season = 1 
+start_time = time.time()
 
 seasonEnd = False      
 # title = "BreakingBad"
 title = input ('input title : ')    #input the title
-
+# title = 'GoT'
 print ('Title : ' + str(title))
 
 link = input ('input IMDB Link : ')     #input IMDB Link (e.g : 'https://www.imdb.com/title/tt0944947/episodes?season=tt0944947' for Game of Thrones
-
+# link = 'https://www.imdb.com/title/tt0944947/episodes?season=tt0944947'
 
 potong, sep, after = link.partition("=")
 urlRaw = str(potong) + '='
@@ -24,20 +26,21 @@ def ExtractIMDBSeries (soup):
     episode = 1
     totalEpisodes = []
     for each in episodes_list:
-        episodes_item = [0, 1, 2, 3, 4]
-        episodes_item[0] = episode      # extract episode number
-        episodes_item[1] = each.findPrevious('div', attrs={'class': 'airdate'}).text
-        episodes_item[2] = each.text    # extract episode title
-        episodes_item[3] = each.findNext('div', attrs={'class': 'item_description'}).text     #extract episode description
+        episodes_item = []
+        episodes_item.append(episode)
+        episodes_item.append(season)    # extract episode number
+        episodes_item.append(each.findPrevious('div', attrs={'class': 'airdate'}).text)
+        episodes_item.append(each.text)    # extract episode title
+        episodes_item.append(each.findNext('div', attrs={'class': 'item_description'}).text)     #extract episode description
 
         if each.findNext('span', attrs={'class': 'ipl-rating-star__rating'}):
             rating_value = each.findNext('span', attrs={'class': 'ipl-rating-star__rating'}).text   #extract episode IMDB rating
-            episodes_item[4] = float(rating_value)
+            episodes_item.append(float(rating_value))
         else:
             rating_value = 0
-            episodes_item[4] = float(rating_value)
+            episodes_item.append(float(rating_value))
 
-        totalEpisodes += [episodes_item]
+        totalEpisodes.append(episodes_item)
         episode += 1
 
     return totalEpisodes    #list of episode number, airdate, title, description, and rating for one season
@@ -62,7 +65,9 @@ def checkUrl(url, season):
     return seasonEnd
 
 writer = pd.ExcelWriter(str(title)+'_ratings.xlsx')
-bigData = []
+
+bigData = pd.DataFrame()
+
 
 while seasonEnd == False :
     #iterate to extract data from all season
@@ -71,45 +76,30 @@ while seasonEnd == False :
     sauce = requests.get(url)
     soup = bs.BeautifulSoup(sauce.text, 'html.parser')
     print('Season ' + str(season))
-    result = ExtractIMDBSeries(soup)
-    print (result)
-    dfwrite = pd.DataFrame(result, columns=['episode', 'airdate', 'title', 'description', 'rating']) #title', 'description',
-    # dfwrite.to_excel(writer, sheet_name='Season ' + str(season))
-    print (dfwrite)
-    bigData += [dfwrite]
+    bigData = bigData.append(ExtractIMDBSeries(soup),ignore_index = True)
     season += 1
 
-for a in range(len(bigData)):
-    print (bigData[a])
+bigData.columns = ['episode', 'season', 'airdate', 'title', 'description', 'rating']
+
+
+bigData['TotalEpisode'] = bigData.index + 1
 
 ax=plt.gca()
-printData = []
-
-for i in range(len(bigData)):
-    #list up all episode number in totalEpisode variable 
-    if i == 0 :
-        print('aaa' + str(i))
-        bigData[i]['totalEpisode'] = bigData[i]['episode']
-        printData += [bigData[i]]
-        print (bigData[i])
-    else :
-        print ('aaa' + str(i))
-        bigData[i]['totalEpisode'] = bigData[i-1]['totalEpisode'].iloc[-1] + bigData[i]['episode']
-        printData += [bigData[i]]
-        print(bigData[i])
 
 
-for j in range(len(printData)):
-    if j == 0:
-        printData[j] = printData[j].append(printData[j+1].iloc[0])
-    else :
-        if j == len(printData)-1:
-            printData[j] = bigData[j]
-        else :
-            printData[j] = printData[j].append(bigData[j+1].iloc[0])
+for j in bigData['season'].unique():
+    if j == 1:
+        bigData[bigData['season'] == j].plot(kind='line', x='TotalEpisode', y='rating', ax=ax, label='season ' + str(j))
+    else:
+        temp = bigData[bigData['season'] == j].copy()
+        temp.loc[-1] = bigData[bigData['season'] == j-1].iloc[-1].copy()
+        temp.index = temp.index+1
+        temp = temp.sort_index()
+        temp.plot(kind='line', x='TotalEpisode', y='rating', ax=ax, label='season ' + str(j))
 
-    printData[j].plot(kind='line', x='totalEpisode', y='rating', ax=ax, label='season ' + str(j + 1))
-    
+plt.show()   
 #save plot figure
 plt.savefig (title + '_ratings.png')
 writer.save()
+print (bigData)
+print (time.time()-start_time)
